@@ -251,6 +251,9 @@ function draw3D(){
   }
   // windows dots on front edge
   ctx.fillStyle='#0369a1'; design.windows.forEach(w=>{ const p=iso(w.x,w.y,5); ctx.fillRect(p[0]-7,p[1]-2,14,5); });
+  // title last so ground geometry never paints over it
+  ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.fillRect(8,6,860,24);
+  ctx.font='800 13px system-ui'; ctx.fillStyle='#334155'; ctx.fillText('3D — drag to orbit  •  scroll to zoom  •  Shift-drag to pan  •  '+design.roof+' roof  •  '+design.wallH+' ft walls  •  '+design.floors+' floor(s)',16,22);
   ctx.fillStyle='#57534e'; ctx.font='600 11px system-ui'; ctx.fillText('Edit in 2D Plan — this view updates instantly. Doors/windows appear on walls; roof & materials from right panel.',16,H-14);
 }
 
