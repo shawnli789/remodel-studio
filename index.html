@@ -95,6 +95,15 @@ details{border:1px solid #e7e0d4;border-radius:12px;padding:10px;background:#fff
       <!-- Analysis strip -->
       <div id="analysis" style="padding:10px 14px;background:#fffbeb;border-bottom:1px solid #fde68a;font-size:12px;display:none"></div>
 
+      <div id="controls3d" style="display:none;padding:8px 14px;gap:6px;flex-wrap:wrap;align-items:center;background:#eff6ff;border-bottom:1px solid #bfdbfe">
+        <b style="font-size:12px">3D orbit:</b>
+        <button class="btn small" onclick="rotate3D(-1)">⟲ Rotate left</button>
+        <button class="btn small" onclick="rotate3D(1)">Rotate right ⟳</button>
+        <button class="btn small" onclick="tilt3D(1)">Tilt +</button>
+        <button class="btn small" onclick="tilt3D(-1)">Tilt −</button>
+        <button class="btn small" onclick="reset3D()">Reset view</button>
+        <span style="font-size:12px;color:#475569">Drag on the model to orbit • Scroll to zoom • Shift-drag to pan • Touch: drag to orbit, pinch handled by browser zoom</span>
+      </div>
       <div class="canvasWrap" id="canvasWrap">
         <!-- 2D SVG -->
         <svg id="planSvg" viewBox="0 0 640 520" xmlns="http://www.w3.org/2000/svg" style="cursor:crosshair"></svg>

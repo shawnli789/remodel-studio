@@ -198,23 +198,45 @@ function bindPlan(){
   svg.onpointerup=up; svg.onpointerleave=up;
 }
 
+// ---------- 3D orbit camera ----------
+let cam3d={az:Math.PI/4, el:0.49, scale:0.88, ox:450, oy:84};
+const CAM3D_HOME={az:Math.PI/4, el:0.49, scale:0.88, ox:450, oy:84};
+function project3D(x,y,z,cam){ const dx=x-310, dy=y-250, ca=Math.cos(cam.az), sa=Math.sin(cam.az), u=dx*ca-dy*sa, v=dx*sa+dy*ca; return [cam.ox+u*cam.scale, cam.oy+v*cam.scale*cam.el-z*cam.scale*5.9]; }
+function depth3D(x,y,cam){ const dx=x-310, dy=y-250; return dx*Math.sin(cam.az)+dy*Math.cos(cam.az); }
+function rotate3D(dir){ cam3d.az+=dir*Math.PI/10; if(view==='3d') draw3D(); }
+function tilt3D(dir){ cam3d.el=Math.min(0.95,Math.max(0.16,cam3d.el+dir*0.08)); if(view==='3d') draw3D(); }
+function reset3D(){ cam3d={...CAM3D_HOME}; if(view==='3d') draw3D(); toast('3D view reset'); }
+function bind3D(){
+  const c=$('view3d'); if(!c||c._orbitBound) return; c._orbitBound=true;
+  c.style.cursor='grab'; c.style.touchAction='none';
+  let orb=null;
+  c.addEventListener('pointerdown',e=>{ orb={x:e.clientX,y:e.clientY,az:cam3d.az,el:cam3d.el,ox:cam3d.ox,oy:cam3d.oy,pan:e.shiftKey||e.button===2}; c.setPointerCapture(e.pointerId); c.style.cursor='grabbing'; });
+  c.addEventListener('pointermove',e=>{ if(!orb) return; const dx=e.clientX-orb.x, dy=e.clientY-orb.y; if(orb.pan){ cam3d.ox=orb.ox+dx; cam3d.oy=orb.oy+dy; } else { cam3d.az=orb.az+dx*0.008; cam3d.el=Math.min(0.95,Math.max(0.16,orb.el+dy*0.002)); } draw3D(); });
+  const end=()=>{ orb=null; c.style.cursor='grab'; };
+  c.addEventListener('pointerup',end); c.addEventListener('pointercancel',end);
+  c.addEventListener('wheel',e=>{ e.preventDefault(); cam3d.scale=Math.min(2.4,Math.max(0.35,cam3d.scale*Math.exp(-e.deltaY*0.001))); draw3D(); },{passive:false});
+  c.addEventListener('contextmenu',e=>e.preventDefault());
+}
+
 // ---------- 3D isometric ----------
 function draw3D(){
   const c=$('view3d'), ctx=c.getContext('2d'); const W=c.width,H=c.height; ctx.clearRect(0,0,W,H);
   // sky + ground
   const grd=ctx.createLinearGradient(0,0,0,H); grd.addColorStop(0,'#dbeafe'); grd.addColorStop(.55,'#fef3c7'); grd.addColorStop(.56,'#bbf7d0'); grd.addColorStop(1,'#86efac'); ctx.fillStyle=grd; ctx.fillRect(0,0,W,H);
-  ctx.fillStyle='#fff'; ctx.font='800 13px system-ui'; ctx.fillStyle='#334155'; ctx.fillText('3D — live from floor plan  •  '+design.roof+' roof  •  wall height '+design.wallH+' ft  •  '+design.floors+' floor(s)',16,22);
-  const ox=460, oy=64, s=0.72;
-  const iso=(x,y,z)=>[ox+(x-y)*0.86*s, oy+(x+y)*0.42*s - z*7.2*s];
+  ctx.fillStyle='#fff'; ctx.font='800 13px system-ui'; ctx.fillStyle='#334155'; ctx.fillText('3D — drag to orbit  •  scroll to zoom  •  Shift-drag to pan  •  '+design.roof+' roof  •  '+design.wallH+' ft walls  •  '+design.floors+' floor(s)',16,22);
+  const cam=cam3d, iso=(x,y,z)=>project3D(x,y,z,cam);
   function poly(pts,fill,stroke='#475569'){ ctx.beginPath(); pts.forEach((p,i)=> i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.closePath(); ctx.fillStyle=fill; ctx.fill(); ctx.strokeStyle=stroke; ctx.lineWidth=1; ctx.stroke(); }
   // ground shadow / lot
   poly([iso(0,0,0),iso(620,0,0),iso(620,480,0),iso(0,480,0)],'#a7f3d0','#65a30d');
-  // sort rooms back-to-front
-  const rooms=[...design.rooms].sort((a,b)=>(a.x+a.y)-(b.x+b.y));
+  // sort rooms back-to-front by view depth, draw only camera-facing walls
+  const sa=Math.sin(cam.az), ca=Math.cos(cam.az);
+  const rooms=[...design.rooms].sort((a,b)=>depth3D(a.x+a.w/2,a.y+a.h/2,cam)-depth3D(b.x+b.w/2,b.y+b.h/2,cam));
   rooms.forEach(r=>{ const st=ROOM_STYLE[r.type]||{fill:'#e5e7eb'}; const h=design.wallH;
     const a=iso(r.x,r.y,0), b=iso(r.x+r.w,r.y,0), cc=iso(r.x+r.w,r.y+r.h,0), d=iso(r.x,r.y+r.h,0);
     const a2=iso(r.x,r.y,h), b2=iso(r.x+r.w,r.y,h), c2=iso(r.x+r.w,r.y+r.h,h), d2=iso(r.x,r.y+r.h,h);
-    poly([d,cc,c2,d2],'#fde68a'); poly([b,cc,c2,b2],'#fcd34d'); poly([a2,b2,c2,d2], st.fill);
+    if(ca>0) poly([d,cc,c2,d2],'#fde68a'); else poly([a,b,b2,a2],'#fde68a');
+    if(sa>0) poly([b,cc,c2,b2],'#fcd34d'); else poly([a,d,d2,a2],'#fcd34d');
+    poly([a2,b2,c2,d2], st.fill);
     ctx.fillStyle='#1c1917'; ctx.font='700 9px system-ui'; const mid=iso(r.x+r.w/2,r.y+r.h/2,h); ctx.fillText(r.name, mid[0]-22, mid[1]);
   });
   design.extras.forEach(e=>{ const a=iso(e.x,e.y,0),b=iso(e.x+e.w,e.y,0),c=iso(e.x+e.w,e.y+e.h,0),d=iso(e.x,e.y+e.h,0); poly([a,b,c,d], e.type==='Deck'?'#d6a05a':'#d1d5db'); ctx.fillStyle='#44403c'; ctx.font='700 9px system-ui'; const m=iso(e.x+e.w/2,e.y+e.h/2,0); ctx.fillText(e.label||e.type,m[0]-20,m[1]); });
@@ -223,7 +245,7 @@ function draw3D(){
     const ridgeY=(minY+maxY)/2;
     const p1=iso(minX,minY,h),p2=iso(maxX,minY,h),p3=iso(maxX,ridgeY,peak),p4=iso(minX,ridgeY,peak);
     const q1=iso(minX,maxY,h),q2=iso(maxX,maxY,h);
-    if(design.roof!=='Flat'){ poly([p1,p2,p3,p4], design.roofColor); poly([q1,q2,p3,p4], '#7f1d1d'); poly([p2,q2,p3], '#991b1b'); }
+    if(design.roof!=='Flat'){ poly([p1,p2,p3,p4], design.roofColor); poly([q1,q2,p3,p4], '#7f1d1d'); if(sa>0) poly([p2,q2,p3], '#991b1b'); else poly([p1,q1,p4], '#991b1b'); }
     else poly([p1,p2,q2,q1],'#78716c');
     ctx.fillStyle='#fff'; ctx.font='800 10px system-ui'; const rm=iso((minX+maxX)/2,ridgeY,peak); ctx.fillText(design.roof+' roof', rm[0]-24, rm[1]-6);
   }
@@ -322,6 +344,7 @@ function render(){
   $('view3d').style.display=view==='3d'?'block':'none';
   $('siteSvg').style.display=view==='site'?'block':'none';
   $('splitWrap').style.display=view==='split'?'block':'none';
+  $('controls3d').style.display=view==='3d'?'flex':'none';
   if(view==='plan') renderPlanInto($('planSvg'), design);
   if(view==='3d') draw3D();
   if(view==='site') drawSite();
@@ -344,12 +367,13 @@ function exportJSON(){ const blob=new Blob([JSON.stringify({prop,design},null,2)
 
 // ---------- Init ----------
 document.querySelectorAll('#viewTabs button').forEach(b=>b.onclick=()=>setView(b.dataset.view));
-buildToolbar(); bindPlan(); snapshot(); render();
+buildToolbar(); bindPlan(); bind3D(); snapshot(); render();
 document.addEventListener('keydown',e=>{ if((e.key==='Delete'||e.key==='Backspace')&&selectedId!=null&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){ e.preventDefault(); deleteSel(); } if(e.key==='Escape'){selectedId=null; measurePts=[]; render();} });
 window.importProperty=importProperty; window.loadSample=loadSample; window.quickAdd=quickAdd; window.addFloor=addFloor; window.addStairs=addStairs;
 window.undo=undo; window.redo=redo; window.saveDesign=saveDesign; window.shareDesign=shareDesign; window.clearSaved=clearSaved;
 window.loadSaved=loadSaved; window.deleteSaved=deleteSaved; window.exportJSON=exportJSON; window.duplicateSel=duplicateSel; window.deleteSel=deleteSel; window.rotateSel=rotateSel; window.extendHouse=extendHouse;
 window.setFloor=setFloor; window.zoomBy=zoomBy; window.resetView=resetView; window.render=render; window.renderSplit=renderSplit;
+window.rotate3D=rotate3D; window.tilt3D=tilt3D; window.reset3D=reset3D;
 
 
 
